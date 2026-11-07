@@ -6,7 +6,7 @@ from .demo import demo
 from .quadratic import quadratic_map
 from .rankdiag import rank_split_rhat
 from .harmonic import harmonic_audit
-from .finite_window import finite_window_audit
+from .finite_window import finite_window_audit,mixture_window_audit
 
 
 def main():
@@ -16,12 +16,16 @@ def main():
     q=sub.add_parser('quadratic');q.add_argument('input')
     q=sub.add_parser('harmonic');q.add_argument('input')
     q=sub.add_parser('window');q.add_argument('input')
+    q=sub.add_parser('window-mixture');q.add_argument('input')
     q=sub.add_parser('sample');q.add_argument('input')
     a=p.parse_args()
     try:
         if a.command=='demo':result=demo()
         else:
             with open(a.input,encoding='utf8') as f:v=json.load(f)
+            if a.command=='window-mixture':
+                if not isinstance(v,dict) or set(v)!={'precision','mass','trajectories','draws'}:raise ValueError('window-mixture requires exact precision/mass/trajectories/draws fields')
+                print(json.dumps(mixture_window_audit(**v),indent=2,allow_nan=False));return
             if a.command=='window':
                 if not isinstance(v,dict) or set(v)!={'precision','mass','step_size','steps','draws'}:raise ValueError('window requires exact precision/mass/step_size/steps/draws fields')
                 print(json.dumps(finite_window_audit(**v),indent=2,allow_nan=False));return
