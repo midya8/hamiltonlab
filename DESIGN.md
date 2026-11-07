@@ -47,7 +47,7 @@ Four standard-Gaussian chains use starts(-2,-2),(2,2),(-1,-1),(1,1), seeds71..74
 
 Each span/jump is computed within a chain, never across starts. Every state/rejection remains in JSON. Equal transition counts use different work: one step takes2 callback calls per transition, four steps take5, plus each chain's initial callback. No speed claim, sampler ranking or general optimal trajectory-length claim. The demo asserts both meaningful one-step motion and high-acceptance four-step stagnation. Original Gaussian/random-walk/mixture fields and SVG are unchanged.
 
-Nine new tests check map vs actual leapfrog at multiple lengths with unequal precision/mass, energy-defect reconstruction, inverse/negative time, independent seeded conditional moments, determinant, joint precision/mass scaling, one-step variance mismatch, full-period resonance, stable-but-stagnant chains, invalid/nonfinite map inputs and CLI. **47 tests total.** This algebra extends Neal's quadratic/leapfrog exposition; it is independently derived, with no copied code or paper performance claim. The map uses floating-point composition, not symbolic/interval arithmetic, exact-in-computer real arithmetic or a general target theorem. Precision/mass each lie in(0,1e4], step size has nonzero magnitude<=10, steps1..1000; nonfinite composed results fail. Only separable diagonal quadratics are covered. Arbitrary position-dependent Hessians, adaptation, stochastic gradients and accepted-kernel moments are not supplied.
+Nine new tests check map vs actual leapfrog at multiple lengths with unequal precision/mass, energy-defect reconstruction, inverse/negative time, independent seeded conditional moments, determinant, joint precision/mass scaling, one-step variance mismatch, full-period resonance, stable-but-stagnant chains, invalid/nonfinite map inputs and CLI. **47 tests at the rank-diagnostic increment.** This algebra extends Neal's quadratic/leapfrog exposition; it is independently derived, with no copied code or paper performance claim. The map uses floating-point composition, not symbolic/interval arithmetic, exact-in-computer real arithmetic or a general target theorem. Precision/mass each lie in(0,1e4], step size has nonzero magnitude<=10, steps1..1000; nonfinite composed results fail. Only separable diagonal quadratics are covered. Arbitrary position-dependent Hessians, adaptation, stochastic gradients and accepted-kernel moments are not supplied.
 
 ## State-independent trajectory-length randomization
 
@@ -72,7 +72,7 @@ The four-step fixed arm remains unchanged: acceptance1, max span2.81e-14 and tin
 
 This option is not a solution to separated modes. A separate200-transition test starting at x=−6 in the original mixture, epsilon.15 and uniform lengths1..10, still makes zero mode switches. No mixing-time, convergence, calibrated-inference, acceptance-rate or efficiency guarantee follows from randomization. It does not adapt mass/step size or remove the need to inspect chains.
 
-Nine added tests check unchanged default outputs, exact independently reproduced RNG consumption, state-independent length sequences from distant starts, inclusive endpoints/histograms, actual work counters, singleton range copying, retained rejection repeats, resonance motion, continued multimodal trapping, invalid ranges/work budgets and CLI. **47 tests total.** All prior demo fields and SVG remain unchanged. Source: independently implemented state-independent length variation discussed in [Neal, Section4, periodicity and trajectory length](https://ar5iv.labs.arxiv.org/html/1206.1901). No reference code copied or paper performance claim.
+Nine added tests check unchanged default outputs, exact independently reproduced RNG consumption, state-independent length sequences from distant starts, inclusive endpoints/histograms, actual work counters, singleton range copying, retained rejection repeats, resonance motion, continued multimodal trapping, invalid ranges/work budgets and CLI. **47 tests at the rank-diagnostic increment.** All prior demo fields and SVG remain unchanged. Source: independently implemented state-independent length variation discussed in [Neal, Section4, periodicity and trajectory length](https://ar5iv.labs.arxiv.org/html/1206.1901). No reference code copied or paper performance claim.
 
 ## Rank-normalized split and folded chain checks
 
@@ -110,4 +110,46 @@ Two deterministic diagnostic counterexamples are included with their complete su
 
 A monotone transform preserves the bulk rank component as long as ordering/ties are unchanged. Do not generalize this to the folded component under arbitrary nonlinear transforms: folding around a median changes distances. Exact-tie handling and finite normal quantiles are auditable; this is not a claim that numerical values match every statistical package's edge-case conventions. In particular, null for a degenerate folded component is deliberate and conservative, not a package-compatibility assertion.
 
-Nine added tests cover tie ranks/Blom inversion, all ties/symmetric scores, independent closed-form variance ratio, explicit split/fold ordering, affine/chain-order invariance, nonlinear bulk-rank invariance, no mutation, degenerate components, scale/half-chain counterexamples, limits and CLI. **47 tests total.** All previous sampler/demo fields and the SVG remain unchanged. This is independently implemented from [Vehtari et al., Rank-normalization, folding, and localization, Sections4.1/4.2, equations14/15](https://arxiv.org/pdf/1903.08008). No reference implementation copied, no ESS implementation and no paper simulation/threshold guarantee claimed.
+Nine added tests cover tie ranks/Blom inversion, all ties/symmetric scores, independent closed-form variance ratio, explicit split/fold ordering, affine/chain-order invariance, nonlinear bulk-rank invariance, no mutation, degenerate components, scale/half-chain counterexamples, limits and CLI. **47 tests at the rank-diagnostic increment.** All previous sampler/demo fields and the SVG remain unchanged. This is independently implemented from [Vehtari et al., Rank-normalization, folding, and localization, Sections4.1/4.2, equations14/15](https://arxiv.org/pdf/1903.08008). No reference implementation copied, no ESS implementation and no paper simulation/threshold guarantee claimed.
+
+## Analytic harmonic flow and mass convention
+
+```sh
+python -m hamiltonlab harmonic examples/harmonic.json
+```
+
+`harmonic_audit(precision, mass, step_size, steps, position=None)` compares the existing finite leapfrog map with the analytic **unflipped** flow at exactly the same signed duration `T=step_size*steps`. This is a reference for a separable Gaussian `U(q)=sum(k_i*q_i²/2)`, not another sampler or a solution for the mixture/correlated targets. It does not change any sampler draws.
+
+```text
+omega = sqrt(k/m), theta = omega*T
+[q(T)] = [ cos(theta)       sin(theta)/sqrt(k*m) ] [q(0)]
+[p(T)]   [-sqrt(k*m)*sin(theta)   cos(theta)     ] [p(0)]
+x = sqrt(k)*q, y = p/sqrt(m)
+[x(T),y(T)] = clockwise rotation(theta) * [x(0),y(0)]
+```
+
+For independent stationary inputs `q~N(0,1/k), p~N(0,m)`, the exact rotation preserves their joint standardized identity covariance. Its conditional position variance is `sin²(theta)/k`, its stationary lag-one position correlation is `cos(theta)` and its expected squared jump is `((cos(theta)-1)²+sin²(theta))/k`. These are analytic properties of a **hypothetical exact-flow fresh-momentum kernel**, not estimates of the accepted leapfrog chain. Output retains both phase-space maps, their standardized error matrix/Frobenius norm, joint covariance pushforwards, and the leapfrog position variance's relative error **before** Metropolis. That pre-correction covariance is not the accepted chain's invariant covariance.
+
+Mass means **momentum covariance M**, with kinetic energy `p²/(2m)`, not inverse mass. For diagonal precision `[1,100]` and `T=pi/2`:
+
+| Analytic reference | Identity mass `[1,1]` | Precision mass `[1,100]` |
+|---|---|---|
+| Frequencies | 1,10 | 1,1 |
+| Phases | pi/2,5pi | pi/2,pi/2 |
+| Stiff coordinate conditional variance | 3.749399e-33 (roundoff near zero) | .01 |
+| Stiff coordinate lag-one correlation | -1 | 6.123234e-17 (roundoff near zero) |
+| Stiff coordinate standardized numerical-map error | 1.000863 | .001926 |
+
+The last row is measured for the same epsilon `pi/32`,L16; it describes these specified linear systems, not general posterior tuning or speed. Setting `m=k` equalizes the two frequencies under this convention. Setting `m=1/k` instead gives frequencies1,100. No mass estimation or adaptation is performed.
+
+Even perfect integration does not fix a poor duration. At `T=2pi`, precision mass makes the exact map almost identity in floating point; x expected squared jump is5.999039e-32. At `T=pi`, exact x squared jump is4 but conditional variance is1.499760e-32: position only flips sign, preserving its magnitude. Thus **large squared jumps, zero integration error and invariance do not prove exploration**. The supplied full-/half-period examples retain all matrices, not only those summaries.
+
+A fixed-duration `T=1.3` refinement fixture, precision `[1,4]`,identity mass, compares the second coordinate's standardized numerical-map Frobenius error:
+
+| Steps | 8 | 16 | 32 | 64 |
+|---|---|---|---|---|
+| Error | .018919629 | .004712811 | .001177146 | .000294221 |
+
+Doubling steps at fixed duration gives ratios close to4 here, consistent with second-order leapfrog error. This is a deterministic development check, not a universal numerical bound or a benchmark. Ten new tests cover closed dynamics, exact energy/covariance/determinant, composition/inverse time, mass convention, quarter/half/full phases, pre-correction variance, second-order refinement, error matrices, no mutation, limits and CLI. **57 tests total.** All previous demo fields and SVG remain unchanged; only `harmonic_reference` is added.
+
+Inputs inherit quadratic-map bounds: finite2D position, precision/mass in `(0,1e4]`, absolute step size in `(0,10]`,integer steps1..1000. Absolute harmonic phase must also be<=1e6; nonfinite maps/moments fail instead of becoming misleading JSON. The formulas use ordinary floating point, including roundoff near resonances, and are not certified exact arithmetic. This independent extension derives the diagonal-mass solution from [Neal's Hamilton equations and one-dimensional harmonic example, equations8..13](https://ar5iv.labs.arxiv.org/html/1206.1901); no reference code copied, timing/efficiency claim, adaptive tuning or convergence certificate.
