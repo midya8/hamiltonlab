@@ -2,7 +2,7 @@ from .core import sample,leapfrog
 from .targets import correlated,mixture,standard,TRUTH
 from .quadratic import quadratic_map
 from .harmonic import harmonic_audit
-from .finite_window import finite_window_audit
+from .finite_window import finite_window_audit,mixture_window_audit
 from .rankdiag import rank_split_rhat
 import math
 from .diagnostics import moments,classic_rhat
@@ -70,6 +70,10 @@ def demo():
     assert windows['half_period_even']['coordinates'][0]['squared_position']['variance_of_mean']==2.
     assert windows['negative_correlation']['coordinates'][0]['position']['variance_ratio_to_iid_mean']<1.
     assert windows['negative_correlation']['coordinates'][0]['squared_position']['variance_ratio_to_iid_mean']>1.
-    return {'finite_window_reference':windows,'harmonic_reference':harmonic,'rank_diagnostics':rank_audit,'randomized_length_audit':{'chains':randomized,'chain_audits':randomized_audits,'selection':'uniform integer1..4 independent of state; same seed labels/starts/200 transitions as resonance arms but different random draws/work, not a controlled causal comparison'},'quadratic_resonance':resonance,'arms':arms,'separated_mode_failure':trap,'reversibility_position_max_abs_error':reverse,
+    mixture_windows={name:mixture_window_audit([1.,100.],[1.,100.],[{'step_size':t/8,'steps':8} for t in times],20) for name,times in [('frozen_magnitude',[math.pi,2*math.pi]),('symmetric_nonresonant',[math.pi/3,2*math.pi/3])]}
+    assert mixture_windows['frozen_magnitude']['coordinates'][0]['mean_cosine']==0.
+    assert mixture_windows['frozen_magnitude']['coordinates'][0]['mean_squared_cosine']==1.
+    assert mixture_windows['symmetric_nonresonant']['coordinates'][0]['squared_position']['variance_of_mean']<.2
+    return {'random_duration_window_reference':mixture_windows,'finite_window_reference':windows,'harmonic_reference':harmonic,'rank_diagnostics':rank_audit,'randomized_length_audit':{'chains':randomized,'chain_audits':randomized_audits,'selection':'uniform integer1..4 independent of state; same seed labels/starts/200 transitions as resonance arms but different random draws/work, not a controlled causal comparison'},'quadratic_resonance':resonance,'arms':arms,'separated_mode_failure':trap,'reversibility_position_max_abs_error':reverse,
             'development_protocol':'fixed seeds71..74,1000 retained +200 discarded per chain; settings chosen for a readable development illustration, not untouched test or parameter sweep; equal transitions, unequal target-call work; no speed ranking',
             'limits':'high acceptance and pooled moments do not prove exploration; all finite-chain results are descriptive, not certified posterior inference'}
