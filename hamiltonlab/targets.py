@@ -14,6 +14,11 @@ def mixture(q):
     return .5*y*y-high-math.log((a+b)/2),[(a*(x+6)+b*(x-6))/(a+b),y]
 
 
-TARGETS={'correlated':correlated,'mixture':mixture}
+def standard(q):
+    x,y=vector(q,'position')
+    return .5*(x*x+y*y),[x,y]
+
+
+TARGETS={'standard':standard,'correlated':correlated,'mixture':mixture}
 TRUTH={'correlated':{'mean':[0.,0.],'covariance':[[1.,.95],[.95,1.]]},
        'mixture':{'mean':[0.,0.],'covariance':[[37.,0.],[0.,1.]],'positive_x_probability':.5}}
