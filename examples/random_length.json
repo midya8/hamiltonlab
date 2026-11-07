@@ -1,0 +1,1 @@
+{"target":"standard","initial":[2,-1],"method":"hmc","draws":200,"warmup":0,"step_size":1.4142135623730951,"steps":4,"mass":[1,1],"seed":71,"steps_range":[1,4]}
