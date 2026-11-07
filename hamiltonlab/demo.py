@@ -1,6 +1,7 @@
 from .core import sample,leapfrog
 from .targets import correlated,mixture,standard,TRUTH
 from .quadratic import quadratic_map
+from .harmonic import harmonic_audit
 from .rankdiag import rank_split_rhat
 import math
 from .diagnostics import moments,classic_rhat
@@ -49,6 +50,16 @@ def demo():
                 'deterministic_half_chain_shift':{'chains':trend_chains,'classical':classic_rhat(trend_chains),'rank_split':rank_split_rhat(trend_chains,True)}}
     assert rank_audit['deterministic_scale_difference']['rank_split']['coordinates'][0]['folded_rank_normalized_split']['value']>1.2
     assert rank_audit['deterministic_half_chain_shift']['rank_split']['coordinates'][0]['rank_normalized_split']['value']>1.2
-    return {'rank_diagnostics':rank_audit,'randomized_length_audit':{'chains':randomized,'chain_audits':randomized_audits,'selection':'uniform integer1..4 independent of state; same seed labels/starts/200 transitions as resonance arms but different random draws/work, not a controlled causal comparison'},'quadratic_resonance':resonance,'arms':arms,'separated_mode_failure':trap,'reversibility_position_max_abs_error':reverse,
+    harmonic={'identity_mass':harmonic_audit([1.,100.],[1.,1.],math.pi/32,16),
+              'precision_mass':harmonic_audit([1.,100.],[1.,100.],math.pi/32,16),
+              'full_period':harmonic_audit([1.,100.],[1.,100.],math.pi/8,16),
+              'half_period':harmonic_audit([1.,100.],[1.,100.],math.pi/8,8),
+              'fixed_duration_refinement':[harmonic_audit([1.,4.],[1.,1.],1.3/n,n) for n in [8,16,32,64]]}
+    assert harmonic['identity_mass']['coordinates'][1]['exact_conditional_position_variance']<1e-28
+    assert abs(harmonic['precision_mass']['coordinates'][1]['exact_conditional_position_variance']-.01)<1e-15
+    assert harmonic['full_period']['coordinates'][0]['exact_stationary_expected_squared_jump']<1e-28
+    assert harmonic['half_period']['coordinates'][0]['exact_stationary_expected_squared_jump']>3.99
+    assert harmonic['fixed_duration_refinement'][-1]['coordinates'][1]['standardized_map_error_frobenius']<harmonic['fixed_duration_refinement'][-2]['coordinates'][1]['standardized_map_error_frobenius']/3.9
+    return {'harmonic_reference':harmonic,'rank_diagnostics':rank_audit,'randomized_length_audit':{'chains':randomized,'chain_audits':randomized_audits,'selection':'uniform integer1..4 independent of state; same seed labels/starts/200 transitions as resonance arms but different random draws/work, not a controlled causal comparison'},'quadratic_resonance':resonance,'arms':arms,'separated_mode_failure':trap,'reversibility_position_max_abs_error':reverse,
             'development_protocol':'fixed seeds71..74,1000 retained +200 discarded per chain; settings chosen for a readable development illustration, not untouched test or parameter sweep; equal transitions, unequal target-call work; no speed ranking',
             'limits':'high acceptance and pooled moments do not prove exploration; all finite-chain results are descriptive, not certified posterior inference'}
