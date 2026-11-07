@@ -21,3 +21,4 @@ jobs:
           python-version: '3.11'
       - run: python -m hamiltonlab demo > /tmp/hamilton-demo.json
       - run: python examples/render_demo.py /tmp/hamilton-demo.json --check
+      - run: python examples/render_windows.py --check --json /tmp/window-curves.json
