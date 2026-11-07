@@ -189,4 +189,39 @@ For x precision1, precision mass and N20:
 
 At the sign flip, an even-window position mean cancels exactly but q² never averages away its random initial magnitude. For N21, position-mean variance is1/441=.002267574 while q²-mean variance remains2. Negative correlation can help one observable and hurt another. **Zero variance of one average is not evidence of exploration.** These are finite-window variances, not asymptotic ESS, a CLT, an MCSE estimate from data or an inference guarantee. The ordinary infinite-sum autocorrelation shortcut is not used at the nonergodic endpoints rho=+/-1.
 
-Draw count must be an integer1..10000; other inputs inherit the harmonic/quadratic limits. Nonfinite stationary squared-position variances fail cleanly. Nine added tests compare direct covariance double sums, exact quarter/full/half phases including even/odd windows, every lag/weight/coefficient, negative-correlation observables, a seeded stationary exact-kernel simulation, bounds, no mutation and CLI. **66 tests total.** Only `finite_window_reference` is added to the demo; all previous fields and SVG stay unchanged. The diagonal Gaussian dynamics derive from [Neal's harmonic example and momentum-covariance convention, equations8..13](https://ar5iv.labs.arxiv.org/html/1206.1901); the finite-window covariance derivation is provided here independently, not copied reference code or a paper experiment.
+Draw count must be an integer1..10000; other inputs inherit the harmonic/quadratic limits. Nonfinite stationary squared-position variances fail cleanly. Nine added tests compare direct covariance double sums, exact quarter/full/half phases including even/odd windows, every lag/weight/coefficient, negative-correlation observables, a seeded stationary exact-kernel simulation, bounds, no mutation and CLI. **66 tests at the fixed-window increment.** Only `finite_window_reference` is added to the demo; all previous fields and SVG stay unchanged. The diagonal Gaussian dynamics derive from [Neal's harmonic example and momentum-covariance convention, equations8..13](https://ar5iv.labs.arxiv.org/html/1206.1901); the finite-window covariance derivation is provided here independently, not copied reference code or a paper experiment.
+
+## Random durations: zero position correlation is not independence
+
+```sh
+python -m hamiltonlab window-mixture examples/window_mixture.json
+```
+
+`mixture_window_audit(precision, mass, trajectories, draws)` extends the analytic stationary exact-flow reference to a finite list of equally likely trajectories. Each entry has exactly `step_size` and `steps`; duration is their product. A branch is drawn independently each transition, independently of state and fresh momentum. Duplicates retain their multiplicity, so `[A,A,B]` means probabilities2/3 and1/3. The same branch is shared across coordinates; only marginal q and q² covariances are reported, not independence of their joint processes.
+
+For a coordinate, write `c_j=cos(sqrt(k/m)*T_j)`. Conditional expectations give different covariance rates for different observables:
+
+```text
+a = average_j c_j
+b = average_j c_j²         # NOT a²
+Cov(q_t,q_(t+h)) = a^h/k
+Cov(q_t²,q_(t+h)²) = 2*b^h/k²
+Var(mean q) = F_N(a)/k
+Var(mean q²) = 2*F_N(b)/k²
+b-a² = variance of branch cosines
+```
+
+The derivation conditions on one state-independent branch at a time: `E(q_next|q)=a*q` and `E(q_next²-1/k|q)=b*(q²-1/k)`. Iterating these expectations and using stationary Gaussian second/fourth moments gives the displayed covariances. No Gaussian joint-transition claim is needed: the random-duration transition is generally a mixture, not a Gaussian AR(1). Replacing b by a² would silently give the wrong uncertainty for q².
+
+For x precision1, mass1, N20 and equal-probability two-branch schedules:
+
+| Exact durations | a | b | a² | Variance of mean q | Variance of mean q² |
+|---|---|---|---|---|---|
+| pi or2pi | 0 | 1 | 0 | .05 | 2 |
+| pi/3 or2pi/3 | 1.665335e-16 | .25 | 2.773339e-32 | .05 | .162222222 |
+
+In the first schedule, independent choices between sign flip and identity make every nonzero-lag position correlation zero, but magnitude is unchanged forever. Its q-mean variance equals the IID value while its q²-mean variance is20 times the IID value. In the second schedule, position correlation is near zero, but q² remains correlated; its finite-window variance ratio is1.622222222, not1. These are different specified analytic kernels, not a controlled efficiency comparison or a general claim that random lengths fix mixing. Neither is the existing finite-step leapfrog random-length sampler.
+
+JSON includes every branch duration, phase, probability and cosine, plus a, b, a², the nonnegative branch-cosine variance and both complete finite-window audits. Bounds are1..64 entries and1..10000 draws, plus the existing harmonic/quadratic bounds. Invalid/extra fields and nonfinite moments fail. Nine new tests cover singleton equality with the fixed reference, both counterexamples, exhaustive products over independent branch paths, multiplicity/order, no aliasing/mutation, seeded stationary exact-kernel simulation, maximum bounds and CLI. **75 tests total.** Only `random_duration_window_reference` is added to the demo; all prior fields and SVG remain unchanged.
+
+This extension independently derives marginal observable covariances from [Neal's harmonic dynamics and Gaussian momentum convention](https://ar5iv.labs.arxiv.org/html/1206.1901). No reference code or paper simulation is copied. Stationary initialization and IID state-independent branch choices are required. No result is a sampled-chain ESS/MCSE estimate, a CLT, a joint-process independence claim, an adaptive tuning recommendation or a convergence certificate. Floating-point trigonometric roundoff is retained rather than described as exact symbolic zeros.
