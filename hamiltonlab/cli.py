@@ -20,7 +20,7 @@ def main():
                 if not isinstance(v,dict) or set(v)!={'precision','mass','step_size','steps','position'}:raise ValueError('quadratic input requires precision/mass/step_size/steps/position')
                 print(json.dumps(quadratic_map(**v),indent=2,allow_nan=False));return
             required={'target','initial','method','draws','warmup','step_size','steps','mass','seed'}
-            if not isinstance(v,dict) or set(v)!=required:raise ValueError('input requires exact target/initial/method/draws/warmup/step_size/steps/mass/seed fields')
+            if not isinstance(v,dict) or not required<=set(v) or set(v)-required-{'steps_range'}:raise ValueError('input requires exact target/initial/method/draws/warmup/step_size/steps/mass/seed fields')
             name=v.pop('target')
             if name not in TARGETS:raise ValueError('unknown target')
             result=sample(TARGETS[name],**v)
