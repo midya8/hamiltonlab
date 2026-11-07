@@ -5,6 +5,7 @@ from .targets import TARGETS
 from .demo import demo
 from .quadratic import quadratic_map
 from .rankdiag import rank_split_rhat
+from .harmonic import harmonic_audit
 
 
 def main():
@@ -12,6 +13,7 @@ def main():
     sub=p.add_subparsers(dest='command',required=True);sub.add_parser('demo')
     q=sub.add_parser('diagnose');q.add_argument('input')
     q=sub.add_parser('quadratic');q.add_argument('input')
+    q=sub.add_parser('harmonic');q.add_argument('input')
     q=sub.add_parser('sample');q.add_argument('input')
     a=p.parse_args()
     try:
@@ -21,9 +23,9 @@ def main():
             if a.command=='diagnose':
                 if not isinstance(v,dict) or set(v)!={'chains'}:raise ValueError('diagnose input requires exact chains field')
                 print(json.dumps(rank_split_rhat(v['chains'],include_audit=True),indent=2,allow_nan=False));return
-            if a.command=='quadratic':
+            if a.command in ('quadratic','harmonic'):
                 if not isinstance(v,dict) or set(v)!={'precision','mass','step_size','steps','position'}:raise ValueError('quadratic input requires precision/mass/step_size/steps/position')
-                print(json.dumps(quadratic_map(**v),indent=2,allow_nan=False));return
+                print(json.dumps((harmonic_audit if a.command=='harmonic' else quadratic_map)(**v),indent=2,allow_nan=False));return
             required={'target','initial','method','draws','warmup','step_size','steps','mass','seed'}
             if not isinstance(v,dict) or not required<=set(v) or set(v)-required-{'steps_range'}:raise ValueError('input requires exact target/initial/method/draws/warmup/step_size/steps/mass/seed fields')
             name=v.pop('target')
