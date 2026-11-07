@@ -47,14 +47,18 @@ def accept(log_uniform,energy_error):
     return z<min(0.,-d)
 
 
-def sample(target,initial,method='hmc',draws=1000,warmup=200,step_size=.1,steps=10,mass=None,seed=0):
+def sample(target,initial,method='hmc',draws=1000,warmup=200,step_size=.1,steps=10,mass=None,seed=0,steps_range=None):
     q=vector(initial,'initial');n=integer(draws,2,10000,'draws');w=integer(warmup,0,10000,'warmup')
     integer(seed,0,2**32-1,'seed');eps=real(step_size,'step_size');l=integer(steps,1,1000,'steps')
     m=vector([1.,1.] if mass is None else mass,'mass')
     if any(z<=0 or z>1e4 for z in m):raise ValueError('mass must be in(0,1e4]')
     if method not in ['hmc','random_walk']:raise ValueError('unknown method')
     if not 0<eps<=10:raise ValueError('step_size must be in(0,10]')
-    budget=(n+w)*(l+1 if method=='hmc' else 1)
+    if steps_range is not None:
+        if method!='hmc':raise ValueError('steps_range requires hmc')
+        if not isinstance(steps_range,list) or len(steps_range)!=2:raise ValueError('steps_range needs[low,high]')
+        low=integer(steps_range[0],1,1000,'minimum steps');high=integer(steps_range[1],low,1000,'maximum steps')
+    budget=(n+w)*((steps_range[1] if steps_range is not None else l)+1 if method=='hmc' else 1)
     if budget>1000000:raise ValueError('target evaluation budget exceeds1000000')
     calls=[0]
     def counted(q):
@@ -63,10 +67,11 @@ def sample(target,initial,method='hmc',draws=1000,warmup=200,step_size=.1,steps=
     rng=random.Random(seed);current,_=evaluate(counted,q);trace=[];kept=[]
     for index in range(w+n):
         before=q[:];invalid=False;error=None;proposal=None;proposed_u=None
+        length=rng.randint(low,high) if steps_range is not None else l
         if method=='hmc':
             p=[rng.gauss(0.,math.sqrt(z)) for z in m]
             try:
-                result=leapfrog(counted,q,p,eps,l,m);proposal=result['position'];proposed_u=result['potential'];error=result['energy_error']
+                result=leapfrog(counted,q,p,eps,length,m);proposal=result['position'];proposed_u=result['potential'];error=result['energy_error']
             except (ValueError,OverflowError):
                 invalid=True
         else:
@@ -81,10 +86,16 @@ def sample(target,initial,method='hmc',draws=1000,warmup=200,step_size=.1,steps=
         if index>=w:kept.append(q[:])
         trace.append({'iteration':index+1,'warmup':index<w,'before':before,'proposal':proposal,'state':q[:],
                       'accepted':chosen,'invalid_trajectory':invalid,'energy_error':error,'log_uniform':logu})
+        if steps_range is not None:trace[-1]['chosen_steps']=length
     retained=trace[w:]
-    return {'samples':kept,'transitions':trace,'method':method,'seed':seed,'draws':n,'warmup':w,'step_size':eps,
+    result={'samples':kept,'transitions':trace,'method':method,'seed':seed,'draws':n,'warmup':w,'step_size':eps,
             'steps':l if method=='hmc' else None,'mass':m if method=='hmc' else None,
             'retained_acceptance_rate':sum(t['accepted'] for t in retained)/n,
             'invalid_trajectories':sum(t['invalid_trajectory'] for t in trace),
             'potential_gradient_callback_calls':calls[0],
             'semantics':'all retained transitions including repeated rejected states; fixed settings, discarded warmup is not adaptation; no convergence guarantee'}
+    if steps_range is not None:
+        result['steps']=None;result['steps_range']=steps_range[:]
+        result['length_counts']={str(k):sum(t['chosen_steps']==k for t in trace) for k in range(low,high+1)}
+        result['length_semantics']='state-independent discrete uniform inclusive bounds, drawn before momentum each transition; not adaptation or state-dependent stopping'
+    return result
