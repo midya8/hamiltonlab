@@ -1,0 +1,1 @@
+{"target":"correlated","initial":[0,0],"method":"hmc","draws":1000,"warmup":200,"step_size":0.15,"steps":10,"mass":[1,1],"seed":71}
