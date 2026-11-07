@@ -1,5 +1,7 @@
 from .core import sample,leapfrog
-from .targets import correlated,mixture,TRUTH
+from .targets import correlated,mixture,standard,TRUTH
+from .quadratic import quadratic_map
+import math
 from .diagnostics import moments,classic_rhat
 
 
@@ -22,6 +24,15 @@ def demo():
     back=leapfrog(correlated,forward['position'],[-z for z in forward['momentum']],.1,13)
     reverse=max(abs(back['position'][i]-q[i]) for i in range(2))
     assert reverse<1e-12
-    return {'arms':arms,'separated_mode_failure':trap,'reversibility_position_max_abs_error':reverse,
+    resonance=[]
+    for length in [1,4]:
+        chains=[sample(standard,q,'hmc',200,0,math.sqrt(2),length,seed=71+i) for i,q in enumerate(starts)]
+        audits=[{'max_position_span':max(max(p[k] for p in c['samples'])-min(p[k] for p in c['samples']) for k in range(2)),
+                 'mean_squared_jump':sum(sum((t['state'][k]-t['before'][k])**2 for k in range(2)) for t in c['transitions'])/200} for c in chains]
+        resonance.append({'steps':length,'map':quadratic_map([1.,1.],[1.,1.],math.sqrt(2),length), 'chains':chains,'chain_audits':audits})
+    assert max(a['max_position_span'] for a in resonance[1]['chain_audits'])<1e-10
+    assert min(c['retained_acceptance_rate'] for c in resonance[1]['chains'])>.99
+    assert min(a['mean_squared_jump'] for a in resonance[0]['chain_audits'])>.1
+    return {'quadratic_resonance':resonance,'arms':arms,'separated_mode_failure':trap,'reversibility_position_max_abs_error':reverse,
             'development_protocol':'fixed seeds71..74,1000 retained +200 discarded per chain; settings chosen for a readable development illustration, not untouched test or parameter sweep; equal transitions, unequal target-call work; no speed ranking',
             'limits':'high acceptance and pooled moments do not prove exploration; all finite-chain results are descriptive, not certified posterior inference'}
