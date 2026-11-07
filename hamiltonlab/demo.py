@@ -2,6 +2,7 @@ from .core import sample,leapfrog
 from .targets import correlated,mixture,standard,TRUTH
 from .quadratic import quadratic_map
 from .harmonic import harmonic_audit
+from .finite_window import finite_window_audit
 from .rankdiag import rank_split_rhat
 import math
 from .diagnostics import moments,classic_rhat
@@ -60,6 +61,15 @@ def demo():
     assert harmonic['full_period']['coordinates'][0]['exact_stationary_expected_squared_jump']<1e-28
     assert harmonic['half_period']['coordinates'][0]['exact_stationary_expected_squared_jump']>3.99
     assert harmonic['fixed_duration_refinement'][-1]['coordinates'][1]['standardized_map_error_frobenius']<harmonic['fixed_duration_refinement'][-2]['coordinates'][1]['standardized_map_error_frobenius']/3.9
-    return {'harmonic_reference':harmonic,'rank_diagnostics':rank_audit,'randomized_length_audit':{'chains':randomized,'chain_audits':randomized_audits,'selection':'uniform integer1..4 independent of state; same seed labels/starts/200 transitions as resonance arms but different random draws/work, not a controlled causal comparison'},'quadratic_resonance':resonance,'arms':arms,'separated_mode_failure':trap,'reversibility_position_max_abs_error':reverse,
+    windows={'quarter_period':finite_window_audit([1.,100.],[1.,100.],math.pi/32,16,20),
+             'half_period_even':finite_window_audit([1.,100.],[1.,100.],math.pi/8,8,20),
+             'half_period_odd':finite_window_audit([1.,100.],[1.,100.],math.pi/8,8,21),
+             'full_period':finite_window_audit([1.,100.],[1.,100.],math.pi/8,16,20),
+             'negative_correlation':finite_window_audit([1.,100.],[1.,100.],math.acos(-.8)/8,8,20)}
+    assert windows['half_period_even']['coordinates'][0]['position']['variance_of_mean']==0.
+    assert windows['half_period_even']['coordinates'][0]['squared_position']['variance_of_mean']==2.
+    assert windows['negative_correlation']['coordinates'][0]['position']['variance_ratio_to_iid_mean']<1.
+    assert windows['negative_correlation']['coordinates'][0]['squared_position']['variance_ratio_to_iid_mean']>1.
+    return {'finite_window_reference':windows,'harmonic_reference':harmonic,'rank_diagnostics':rank_audit,'randomized_length_audit':{'chains':randomized,'chain_audits':randomized_audits,'selection':'uniform integer1..4 independent of state; same seed labels/starts/200 transitions as resonance arms but different random draws/work, not a controlled causal comparison'},'quadratic_resonance':resonance,'arms':arms,'separated_mode_failure':trap,'reversibility_position_max_abs_error':reverse,
             'development_protocol':'fixed seeds71..74,1000 retained +200 discarded per chain; settings chosen for a readable development illustration, not untouched test or parameter sweep; equal transitions, unequal target-call work; no speed ranking',
             'limits':'high acceptance and pooled moments do not prove exploration; all finite-chain results are descriptive, not certified posterior inference'}
