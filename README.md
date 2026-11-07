@@ -1,2 +1,70 @@
-# hamiltonlab
-Hamiltonian Monte Carlo from scratch: leapfrog energy and reversibility audits, full Metropolis rejection histories, exact synthetic reference moments and high-acceptance mode-trapping counterexamples. Dependency-free Python.
+# HamiltonLab
+
+**A chain can accept almost every proposal and still miss half the target.** Dependency-free Hamiltonian Monte Carlo with explicit leapfrog energy errors, reversible integrator checks, log-domain Metropolis decisions and complete transition histories. Analytic synthetic targets let finite-chain behavior be compared with known moments, without pretending the moments prove convergence.
+
+![Gaussian exploration and separated-mode failure](assets/chain-audit.svg)
+
+## Run offline
+
+```sh
+python -m unittest discover -s tests -v
+python -m hamiltonlab demo > /tmp/hamilton-demo.json
+python examples/render_demo.py /tmp/hamilton-demo.json --check
+python -m hamiltonlab sample examples/chain.json > /tmp/chain.json
+```
+
+Python3.10+, standard library only. No model/data downloads, account, GPU or paid API. `sample` JSON requires exactly `target`, `initial`, `method`, `draws`, `warmup`, `step_size`, `steps`, `mass`, `seed`. CLI targets are `correlated` and `mixture`; API accepts a callback returning `(potential, gradient)` for a2D position. Potential is negative log unnormalized density; its additive constant does not change decisions. Callback returns energy **and gradient even for random walk**, so reported callback counts are not a wall-time or gradient-efficiency comparison.
+
+## What is implemented
+
+With diagonal positive mass M, momenta are refreshed independently as `p~N(0,M)` and kinetic energy is `sum(p_i²/(2*m_i))`. Leapfrog uses half momentum/full position/half momentum steps, combines interior momentum updates and evaluates the gradient at the initial point and each of L position steps. A final momentum flip makes the phase-space proposal an involution; momentum is discarded, so the sampler only needs the returned position and unchanged kinetic energy. The standalone integrator returns the **unflipped** momentum so reversibility can be tested directly.
+
+```text
+p <- p - (epsilon/2)*grad U(q)
+repeat L times:
+  q <- q + epsilon*p/M
+  p <- p - epsilon*grad U(q)   # half step on last iteration
+DeltaH = U(q_new)+K(p_new) - U(q_old)-K(p_old)
+accept iff log(uniform_open_0_1) < min(0, -DeltaH)
+```
+
+Rejected transitions repeat the old state, including after warmup. Dropping these repeats would bias the output. Every transition keeps before/proposal/state, acceptance, signed energy error, log uniform and warmup marker. `ValueError`/overflow from a trajectory is marked invalid and rejected, with null energy error if unavailable, not silently converted into acceptance. Invalid initial target evaluations fail the call. This numerical fallback is not a repair for a wrongly specified callback or discontinuous target.
+
+Settings are fixed. `warmup` only discards early transitions: there is no step-size/mass adaptation, dual averaging, NUTS, tempering or optimizer. Random-walk Metropolis uses symmetric isotropic Gaussian proposals and log-domain acceptance on potential differences. It is a comparison setting, not an intentionally optimized baseline.
+
+## Measured development fixture
+
+Four chains per arm, seeds71..74,1,000 retained plus200 discarded transitions each. Correlated Gaussian covariance is `[[1,.95],[.95,1]]`, mean0. HMC uses epsilon.15,L10,identity mass; random walk uses proposal standard deviation.15. Same transition counts, **different work**. These settings were chosen for a readable development illustration, not an untouched benchmark or a sweep over optimal settings. Equal step parameters are not equal exploration budgets. No sampler ranking or speedup claim follows.
+
+| Correlated Gaussian | HMC | Random walk | Analytic truth |
+|---|---|---|---|
+| Retained acceptance range | .979 to .987 | .765 to .800 | Not a target moment |
+| Pooled mean x / y | .008864 / .018598 | .172653 / .195747 | 0 / 0 |
+| Pooled sample variance x / y | 1.029658 / 1.016501 | 1.471826 / 1.499563 | 1 / 1 |
+| Pooled sample covariance x,y | .973860 | 1.436712 | .95 |
+| Classical unsplit x R-hat | 1.005600 | 1.391580 | Not a guarantee |
+| Potential+gradient callbacks, all chains | 52,804 | 4,804 | Includes discarded transitions |
+
+Finite-chain deviations are observations, not posterior error bars. Samples are dependent; pooled sample covariance uses denominator N−1 but is not claimed unbiased for these correlated draws. Four independently seeded starts help expose this fixture's behavior, not establish convergence.
+
+### High acceptance, no mode exploration
+
+The equally weighted mixture has means(-6,0)/(+6,0), identity component covariance, analytic mean0 and covariance diag(37,1). Four HMC chains start two in each component with the same epsilon/L as above. Retained acceptance ranges .997 to1.000, yet **each chain has zero x-sign/mode switches**. Classical x R-hat is6.944902. Pooled positive-x share is exactly.5, pooled mean x≈−.001131 and variance x≈36.420599, close-looking global summaries that conceal disconnected chains. Pooled occupancy was induced by the starts, not learned by mixing. Transitions are counted within chains only, never across concatenation boundaries.
+
+The demo asserts both a reasonable correlated-Gaussian mean check and the separated-mode failure: high acceptance, zero within-chain mode switches and x R-hat>3. It is supposed to fail if either side disappears. It also checks a forward/flip/back leapfrog position residual5.55e-17 on one deterministic input. That finite check is not a proof for all callbacks or long trajectories.
+
+## Diagnostics with their limits
+
+`moments` reports means, N−1 sample covariance, positive-x share and x-sign transitions. `classic_rhat` implements the classical between/within variance ratio for equal-length chains. It is **unsplit and unranked**, has no ESS/MCSE or modern tail diagnostic, and values below1 are not clipped. Zero within-chain variance returns null plus an explicit undefined status, never a fake success. High acceptance, low R-hat, plausible pooled moments or a finite gradient/reversibility check alone cannot prove exploration or calibrated posterior inference.
+
+## Bounds and tests
+
+Fixed2D vectors; finite energies/gradients; diagonal mass in(0,1e4]; positive sampler step size<=10; integrator also accepts negative nonzero step size for reversal; leapfrog steps1..1000; draws2..10000; discarded transitions0..10000; seed0..2³²−1. Planned target work `(draws+warmup)*(L+1)` for HMC or `(draws+warmup)` for random walk must be<=1million, plus the single initial callback. Actual callback calls are counted, including aborted trajectories. Full traces are retained, so memory use grows with transition count. No thinning or hidden independent-sample resampling.
+
+20 tests cover analytic target gradients vs central differences, closed one-step leapfrog, reversibility with nonunit masses, finite-difference4D Jacobian determinant≈1, energy error at decreasing step sizes on a fixed-time quadratic trajectory, log acceptance extremes/ties, deterministic seeds/no mutation, repeated rejection states, counted failed trajectories, random-walk work, seeded Gaussian reference moments, exact small R-hat arithmetic, undefined constant chains and CLI/bound errors. CI tests Python3.10..3.13 and regenerates the offline SVG byte-for-byte.
+
+## Source and scope
+
+Leapfrog and HMC mechanics are independently implemented from [Radford Neal, MCMC using Hamiltonian dynamics, Sections2..4](https://ar5iv.labs.arxiv.org/html/1206.1901), especially equations38..40 and the standard Metropolis energy test. No reference code copied. The classical R-hat variance formula is explicitly written in `diagnostics.py`; no modern rank-normalized diagnostic is claimed. Synthetic target gradients and moments are analytic derivations in this project. No paper benchmark, inference certification, differentiable training, fitted posterior or broad performance theorem is claimed.
+
+MIT license.
