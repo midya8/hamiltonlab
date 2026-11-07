@@ -4,11 +4,13 @@ from .core import sample
 from .targets import TARGETS
 from .demo import demo
 from .quadratic import quadratic_map
+from .rankdiag import rank_split_rhat
 
 
 def main():
     p=argparse.ArgumentParser(description='Auditable fixed-setting two-dimensional HMC')
     sub=p.add_subparsers(dest='command',required=True);sub.add_parser('demo')
+    q=sub.add_parser('diagnose');q.add_argument('input')
     q=sub.add_parser('quadratic');q.add_argument('input')
     q=sub.add_parser('sample');q.add_argument('input')
     a=p.parse_args()
@@ -16,6 +18,9 @@ def main():
         if a.command=='demo':result=demo()
         else:
             with open(a.input,encoding='utf8') as f:v=json.load(f)
+            if a.command=='diagnose':
+                if not isinstance(v,dict) or set(v)!={'chains'}:raise ValueError('diagnose input requires exact chains field')
+                print(json.dumps(rank_split_rhat(v['chains'],include_audit=True),indent=2,allow_nan=False));return
             if a.command=='quadratic':
                 if not isinstance(v,dict) or set(v)!={'precision','mass','step_size','steps','position'}:raise ValueError('quadratic input requires precision/mass/step_size/steps/position')
                 print(json.dumps(quadratic_map(**v),indent=2,allow_nan=False));return
