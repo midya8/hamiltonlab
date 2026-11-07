@@ -150,6 +150,43 @@ A fixed-duration `T=1.3` refinement fixture, precision `[1,4]`,identity mass, co
 |---|---|---|---|---|
 | Error | .018919629 | .004712811 | .001177146 | .000294221 |
 
-Doubling steps at fixed duration gives ratios close to4 here, consistent with second-order leapfrog error. This is a deterministic development check, not a universal numerical bound or a benchmark. Ten new tests cover closed dynamics, exact energy/covariance/determinant, composition/inverse time, mass convention, quarter/half/full phases, pre-correction variance, second-order refinement, error matrices, no mutation, limits and CLI. **57 tests total.** All previous demo fields and SVG remain unchanged; only `harmonic_reference` is added.
+Doubling steps at fixed duration gives ratios close to4 here, consistent with second-order leapfrog error. This is a deterministic development check, not a universal numerical bound or a benchmark. Ten new tests cover closed dynamics, exact energy/covariance/determinant, composition/inverse time, mass convention, quarter/half/full phases, pre-correction variance, second-order refinement, error matrices, no mutation, limits and CLI. **57 tests at the harmonic-reference increment.** All previous demo fields and SVG remain unchanged; only `harmonic_reference` is added.
 
 Inputs inherit quadratic-map bounds: finite2D position, precision/mass in `(0,1e4]`, absolute step size in `(0,10]`,integer steps1..1000. Absolute harmonic phase must also be<=1e6; nonfinite maps/moments fail instead of becoming misleading JSON. The formulas use ordinary floating point, including roundoff near resonances, and are not certified exact arithmetic. This independent extension derives the diagonal-mass solution from [Neal's Hamilton equations and one-dimensional harmonic example, equations8..13](https://ar5iv.labs.arxiv.org/html/1206.1901); no reference code copied, timing/efficiency claim, adaptive tuning or convergence certificate.
+
+## Finite-window observables: a mean can cancel while magnitude stays stuck
+
+```sh
+python -m hamiltonlab window examples/window.json
+```
+
+`finite_window_audit(precision, mass, step_size, steps, draws)` evaluates the variance of an average of N consecutive positions and of their squares under the **hypothetical stationary exact-flow Gaussian kernel**. It does not analyze the recorded leapfrog chains. Stationarity includes a random initial position drawn from the Gaussian target; these formulas do not include transient bias from a fixed start.
+
+Full independent Gaussian momentum refresh makes each coordinate an AR(1) in exact dynamics:
+
+```text
+q_next = rho*q + sqrt((1-rho²)/k)*z, z~N(0,1), rho=cos(sqrt(k/m)*T)
+Cov(q_t,q_(t+h)) = rho^h/k
+E(q²)=1/k, Var(q²)=2/k²
+Cov(q_t²,q_(t+h)²) = 2*rho^(2h)/k²
+F_N(r) = [N + 2*sum_(h=1..N-1) (N-h)*r^h] / N²
+Var(mean q) = F_N(rho)/k
+Var(mean q²) = 2*F_N(rho²)/k²
+```
+
+The squared-position covariance follows directly by conditioning the Gaussian update: `E(q_(t+h)²|q_t)=rho^(2h)*q_t²+(1-rho^(2h))/k` and `E(q_t^4)=3/k²`. This is an analytic derivation for that specified kernel, not a normality test or a Gaussian approximation to another chain.
+
+To avoid cancellation near negative unit correlation, the reported variance uses a nonnegative representation: `a_j=1+rho+...+rho^(j-1)`, `Var(sum Z)=a_N²+(1-rho²)*sum_(j=1..N-1)a_j²` for standardized covariance `rho^|i-j|`. It applies to q²'s covariance too, without claiming that q² has Gaussian innovations. Both this factor and the separate signed lag-sum factor are returned with their roundoff difference. Complete lag correlations, weights, weighted terms, initial coefficient and innovation coefficient sum remain in JSON. No hidden clipping of a negative signed sum is used.
+
+For x precision1, precision mass and N20:
+
+| Exact-flow duration | Variance of mean q | Variance of mean q² | q variance / IID mean variance | q² variance / IID mean variance |
+|---|---|---|---|---|
+| pi/2 (quarter period) | .05 | .1 | 1 | 1 |
+| pi (sign flip) | 0 | 2 | 0 | 20 |
+| 2pi (identity) | 1 | 2 | 20 | 20 |
+| acos(-.8) | .006775890 | .406179404 | .135517797 | 4.061794036 |
+
+At the sign flip, an even-window position mean cancels exactly but q² never averages away its random initial magnitude. For N21, position-mean variance is1/441=.002267574 while q²-mean variance remains2. Negative correlation can help one observable and hurt another. **Zero variance of one average is not evidence of exploration.** These are finite-window variances, not asymptotic ESS, a CLT, an MCSE estimate from data or an inference guarantee. The ordinary infinite-sum autocorrelation shortcut is not used at the nonergodic endpoints rho=+/-1.
+
+Draw count must be an integer1..10000; other inputs inherit the harmonic/quadratic limits. Nonfinite stationary squared-position variances fail cleanly. Nine added tests compare direct covariance double sums, exact quarter/full/half phases including even/odd windows, every lag/weight/coefficient, negative-correlation observables, a seeded stationary exact-kernel simulation, bounds, no mutation and CLI. **66 tests total.** Only `finite_window_reference` is added to the demo; all previous fields and SVG stay unchanged. The diagonal Gaussian dynamics derive from [Neal's harmonic example and momentum-covariance convention, equations8..13](https://ar5iv.labs.arxiv.org/html/1206.1901); the finite-window covariance derivation is provided here independently, not copied reference code or a paper experiment.
