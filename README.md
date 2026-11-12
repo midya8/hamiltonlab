@@ -83,7 +83,7 @@ The sampler and diagnostic tests cover analytic target gradients vs central diff
 
 ## Source and scope
 
-Leapfrog and HMC mechanics are independently implemented from [Radford Neal, MCMC using Hamiltonian dynamics, Sections 2-4](https://ar5iv.labs.arxiv.org/html/1206.1901), especially equations 38-40 and the standard Metropolis energy test. No reference code copied. The classical R-hat variance formula is explicitly written in `diagnostics.py`; no modern rank-normalized diagnostic is claimed. Synthetic target gradients and moments are analytic derivations in this project. No paper benchmark, inference certification, differentiable training, fitted posterior or broad performance theorem is claimed.
+Leapfrog and HMC mechanics are independently implemented from [Radford Neal, MCMC using Hamiltonian dynamics, Sections 2-4](https://ar5iv.labs.arxiv.org/html/1206.1901), especially equations 38-40 and the standard Metropolis energy test. No reference code copied. The classical R-hat variance formula is written in `diagnostics.py`. The separate rank-normalized split/folded diagnostic is described below. Synthetic target gradients and moments are analytic derivations in this project. No paper benchmark, inference certification, differentiable training, fitted posterior or broad performance theorem is claimed.
 
 MIT license.
 
