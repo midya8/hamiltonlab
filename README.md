@@ -1,21 +1,39 @@
 # HamiltonLab
 
-**A chain can accept almost every proposal and still miss half the target.** Dependency-free Hamiltonian Monte Carlo with explicit leapfrog energy errors, reversible integrator checks, log-domain Metropolis decisions and complete transition histories. Analytic synthetic targets let finite-chain behavior be compared with known moments, without pretending the moments prove convergence.
+Dependency-free Hamiltonian Monte Carlo with explicit leapfrog energy errors, reversible integrator checks, log-domain Metropolis decisions and complete transition histories. Analytic synthetic targets let finite-chain behavior be compared with known moments, without pretending the moments prove convergence.
 
 ![Gaussian exploration and separated-mode failure](assets/chain-audit.svg)
+
+## Choose an analysis
+
+| Question | Entry point | Scope |
+| --- | --- | --- |
+| What do the finite sampler traces show? | `sample`, `demo` | Metropolis-corrected HMC/random walk, repeated states and work counts |
+| How does leapfrog differ from exact quadratic flow? | `quadratic`, `harmonic` | Separable Gaussian maps and pre-correction moments |
+| Do chains differ in location or scale? | `diagnose` | Rank/folded split diagnostics, not a convergence certificate |
+| How does an observable average over a finite window? | `window`, `window-mixture` | Hypothetical stationary exact-flow kernels, not recorded leapfrog chains |
+
+High acceptance, low position correlation and plausible pooled moments can each
+hide failed exploration. The later analytic references do not certify the
+sampler or estimate its ESS/MCSE. The current suite has 82 tests.
 
 ## Run offline
 
 ```sh
+python -m venv /tmp/hamilton-env
+. /tmp/hamilton-env/bin/activate
+python -m pip install .
 python -m unittest discover -s tests -v
 python -m hamiltonlab demo > /tmp/hamilton-demo.json
 python examples/render_demo.py /tmp/hamilton-demo.json --check
 python -m hamiltonlab sample examples/chain.json > /tmp/chain.json
 ```
 
-Python3.10+, standard library only. No model/data downloads, account, GPU or paid API. `sample` JSON requires exactly `target`, `initial`, `method`, `draws`, `warmup`, `step_size`, `steps`, `mass`, `seed`. CLI targets are `correlated` and `mixture`; API accepts a callback returning `(potential, gradient)` for a2D position. Potential is negative log unnormalized density; its additive constant does not change decisions. Callback returns energy **and gradient even for random walk**, so reported callback counts are not a wall-time or gradient-efficiency comparison.
+Python 3.10+, standard library only. No model/data downloads, account, GPU or paid API.
 
-## What is implemented
+`sample` JSON requires exactly `target`, `initial`, `method`, `draws`, `warmup`, `step_size`, `steps`, `mass`, `seed`. CLI targets are `correlated` and `mixture`; API accepts a callback returning `(potential, gradient)` for a 2D position. Potential is negative log unnormalized density; its additive constant does not change decisions. Callback returns energy **and gradient even for random walk**, so reported callback counts are not a wall-time or gradient-efficiency comparison.
+
+## Sampler mechanics
 
 With diagonal positive mass M, momenta are refreshed independently as `p~N(0,M)` and kinetic energy is `sum(p_i²/(2*m_i))`. Leapfrog uses half momentum/full position/half momentum steps, combines interior momentum updates and evaluates the gradient at the initial point and each of L position steps. A final momentum flip makes the phase-space proposal an involution; momentum is discarded, so the sampler only needs the returned position and unchanged kinetic energy. The standalone integrator returns the **unflipped** momentum so reversibility can be tested directly.
 
@@ -32,7 +50,7 @@ Rejected transitions repeat the old state, including after warmup. Dropping thes
 
 Settings are fixed. `warmup` only discards early transitions: there is no step-size/mass adaptation, dual averaging, NUTS, tempering or optimizer. Random-walk Metropolis uses symmetric isotropic Gaussian proposals and log-domain acceptance on potential differences. It is a comparison setting, not an intentionally optimized baseline.
 
-## Measured development fixture
+## Sampler controls
 
 Four chains per arm, seeds71..74,1,000 retained plus200 discarded transitions each. Correlated Gaussian covariance is `[[1,.95],[.95,1]]`, mean0. HMC uses epsilon.15,L10,identity mass; random walk uses proposal standard deviation.15. Same transition counts, **different work**. These settings were chosen for a readable development illustration, not an untouched benchmark or a sweep over optimal settings. Equal step parameters are not equal exploration budgets. No sampler ranking or speedup claim follows.
 
@@ -59,25 +77,25 @@ The demo asserts both a reasonable correlated-Gaussian mean check and the separa
 
 ## Bounds and tests
 
-Fixed2D vectors; finite energies/gradients; diagonal mass in(0,1e4]; positive sampler step size<=10; integrator also accepts negative nonzero step size for reversal; leapfrog steps1..1000; draws2..10000; discarded transitions0..10000; seed0..2³²−1. Planned target work `(draws+warmup)*(L+1)` for HMC or `(draws+warmup)` for random walk must be<=1million, plus the single initial callback. Actual callback calls are counted, including aborted trajectories. Full traces are retained, so memory use grows with transition count. No thinning or hidden independent-sample resampling.
+Fixed 2D vectors; finite energies/gradients; diagonal mass in(0,1e4]; positive sampler step size<=10; integrator also accepts negative nonzero step size for reversal; leapfrog steps1..1000; draws2..10000; discarded transitions0..10000; seed0..2³²−1. Planned target work `(draws+warmup)*(L+1)` for HMC or `(draws+warmup)` for random walk must be<=1million, plus the single initial callback. Actual callback calls are counted, including aborted trajectories. Full traces are retained, so memory use grows with transition count. No thinning or hidden independent-sample resampling.
 
-47 tests cover analytic target gradients vs central differences, closed one-step leapfrog, reversibility with nonunit masses, finite-difference4D Jacobian determinant≈1, energy error at decreasing step sizes on a fixed-time quadratic trajectory, log acceptance extremes/ties, deterministic seeds/no mutation, repeated rejection states, counted failed trajectories, random-walk work, seeded Gaussian reference moments, exact small R-hat arithmetic, undefined constant chains and CLI/bound errors. CI tests Python3.10..3.13 and regenerates the offline SVG byte-for-byte.
+The sampler and diagnostic tests cover analytic target gradients vs central differences, closed one-step leapfrog, reversibility with nonunit masses, finite-difference 4D Jacobian determinant≈1, energy error at decreasing step sizes on a fixed-time quadratic trajectory, log acceptance extremes/ties, deterministic seeds/no mutation, repeated rejection states, counted failed trajectories, random-walk work, seeded Gaussian reference moments, exact small R-hat arithmetic, undefined constant chains and CLI/bound errors. CI tests Python 3.10 through 3.13 and regenerates the offline SVG byte-for-byte.
 
 ## Source and scope
 
-Leapfrog and HMC mechanics are independently implemented from [Radford Neal, MCMC using Hamiltonian dynamics, Sections2..4](https://ar5iv.labs.arxiv.org/html/1206.1901), especially equations38..40 and the standard Metropolis energy test. No reference code copied. The classical R-hat variance formula is explicitly written in `diagnostics.py`; no modern rank-normalized diagnostic is claimed. Synthetic target gradients and moments are analytic derivations in this project. No paper benchmark, inference certification, differentiable training, fitted posterior or broad performance theorem is claimed.
+Leapfrog and HMC mechanics are independently implemented from [Radford Neal, MCMC using Hamiltonian dynamics, Sections 2-4](https://ar5iv.labs.arxiv.org/html/1206.1901), especially equations 38-40 and the standard Metropolis energy test. No reference code copied. The classical R-hat variance formula is explicitly written in `diagnostics.py`; no modern rank-normalized diagnostic is claimed. Synthetic target gradients and moments are analytic derivations in this project. No paper benchmark, inference certification, differentiable training, fitted posterior or broad performance theorem is claimed.
 
 MIT license.
 
 ## Quadratic resonance: stable, accepted and barely moving
 
-A second failure needs no separated modes. On the standard2D Gaussian, identity mass and epsilon=sqrt(2), **four leapfrog steps are an identity map in exact arithmetic**. Refreshing momentum cannot fix a trajectory that returns to its starting position. Floating-point trajectories only move by tiny rounding errors. Linear stability and unit determinant do not imply exploration.
+A second failure needs no separated modes. On the standard 2D Gaussian, identity mass and epsilon=sqrt(2), **four leapfrog steps are an identity map in exact arithmetic**. Refreshing momentum cannot fix a trajectory that returns to its starting position. Floating-point trajectories only move by tiny rounding errors. Linear stability and unit determinant do not imply exploration.
 
 ```sh
 python -m hamiltonlab quadratic examples/quadratic.json
 ```
 
-`quadratic_map(precision,mass,step_size,steps,position)` derives and composes the per-coordinate2x2 map for `U(q)=sum(k_i*q_i²/2)`. It returns the full one-step/trajectory maps, determinant, strict linear-stability indicator, Hamiltonian quadratic defect and conditional Gaussian proposal moments. These moments are **before Metropolis acceptance**, not the accepted-chain kernel or a mixing bound. The identity-resonance example is deliberate, not a tuning recommendation.
+`quadratic_map(precision,mass,step_size,steps,position)` derives and composes the per-coordinate 2x2 map for `U(q)=sum(k_i*q_i²/2)`. It returns the full one-step/trajectory maps, determinant, strict linear-stability indicator, Hamiltonian quadratic defect and conditional Gaussian proposal moments. These moments are **before Metropolis acceptance**, not the accepted-chain kernel or a mixing bound. The identity-resonance example is deliberate, not a tuning recommendation.
 
 ```text
 A = [[1-epsilon²*k/(2*m), epsilon/m],
@@ -98,9 +116,9 @@ Four standard-Gaussian chains use starts(-2,-2),(2,2),(-1,-1),(1,1), seeds71..74
 | 1 | .570 to .710 | 6.231696 | 2.231222 to4.027284 |
 | 4 | 1.000 to1.000 | 2.81e-14 | 1.29e-30 to1.80e-30 |
 
-Each span/jump is computed within a chain, never across starts. Every state/rejection remains in JSON. Equal transition counts use different work: one step takes2 callback calls per transition, four steps take5, plus each chain's initial callback. No speed claim, sampler ranking or general optimal trajectory-length claim. The demo asserts both meaningful one-step motion and high-acceptance four-step stagnation. Original Gaussian/random-walk/mixture fields and SVG are unchanged.
+Each span/jump is computed within a chain, never across starts. Every state/rejection remains in JSON. Equal transition counts use different work: one step takes2 callback calls per transition, four steps take5, plus each chain's initial callback. No speed claim, sampler ranking or general optimal trajectory-length claim. The demo asserts both meaningful one-step motion and high-acceptance four-step stagnation. The JSON also retains the Gaussian, random-walk and separated-mixture controls.
 
-Nine new tests check map vs actual leapfrog at multiple lengths with unequal precision/mass, energy-defect reconstruction, inverse/negative time, independent seeded conditional moments, determinant, joint precision/mass scaling, one-step variance mismatch, full-period resonance, stable-but-stagnant chains, invalid/nonfinite map inputs and CLI. **47 tests at the rank-diagnostic increment.** This algebra extends Neal's quadratic/leapfrog exposition; it is independently derived, with no copied code or paper performance claim. The map uses floating-point composition, not symbolic/interval arithmetic, exact-in-computer real arithmetic or a general target theorem. Precision/mass each lie in(0,1e4], step size has nonzero magnitude<=10, steps1..1000; nonfinite composed results fail. Only separable diagonal quadratics are covered. Arbitrary position-dependent Hessians, adaptation, stochastic gradients and accepted-kernel moments are not supplied.
+Quadratic-map tests check map vs actual leapfrog at multiple lengths with unequal precision/mass, energy-defect reconstruction, inverse/negative time, independent seeded conditional moments, determinant, joint precision/mass scaling, one-step variance mismatch, full-period resonance, stable-but-stagnant chains, invalid/nonfinite map inputs and CLI. This algebra extends Neal's quadratic/leapfrog exposition; it is independently derived, with no copied code or paper performance claim. The map uses floating-point composition, not symbolic/interval arithmetic, exact-in-computer real arithmetic or a general target theorem. Precision/mass each lie in(0,1e4], step size has nonzero magnitude<=10, steps1..1000; nonfinite composed results fail. Only separable diagonal quadratics are covered. Arbitrary position-dependent Hessians, adaptation, stochastic gradients and accepted-kernel moments are not supplied.
 
 ## State-independent trajectory-length randomization
 
@@ -125,7 +143,7 @@ The four-step fixed arm remains unchanged: acceptance1, max span2.81e-14 and tin
 
 This option is not a solution to separated modes. A separate200-transition test starting at x=−6 in the original mixture, epsilon.15 and uniform lengths1..10, still makes zero mode switches. No mixing-time, convergence, calibrated-inference, acceptance-rate or efficiency guarantee follows from randomization. It does not adapt mass/step size or remove the need to inspect chains.
 
-Nine added tests check unchanged default outputs, exact independently reproduced RNG consumption, state-independent length sequences from distant starts, inclusive endpoints/histograms, actual work counters, singleton range copying, retained rejection repeats, resonance motion, continued multimodal trapping, invalid ranges/work budgets and CLI. **47 tests at the rank-diagnostic increment.** All prior demo fields and SVG remain unchanged. Source: independently implemented state-independent length variation discussed in [Neal, Section4, periodicity and trajectory length](https://ar5iv.labs.arxiv.org/html/1206.1901). No reference code copied or paper performance claim.
+Random-length tests check unchanged default outputs, exact independently reproduced RNG consumption, state-independent length sequences from distant starts, inclusive endpoints/histograms, actual work counters, singleton range copying, retained rejection repeats, resonance motion, continued multimodal trapping, invalid ranges/work budgets and CLI. Source: independently implemented state-independent length variation discussed in [Neal, Section 4, periodicity and trajectory length](https://ar5iv.labs.arxiv.org/html/1206.1901). No reference code copied or paper performance claim.
 
 ## Rank-normalized split and folded chain checks
 
@@ -135,7 +153,7 @@ The original classical diagnostic remains unchanged. `rank_split_rhat(chains, in
 python -m hamiltonlab diagnose examples/chains.json
 ```
 
-The `diagnose` JSON has exactly `chains`: a list of retained2D chains, not sampler result objects. It returns full intermediate rank/fold/normal-score audit arrays. API callers can omit these arrays. Use **retained samples only**; this function does not infer or remove warmup from a plain list.
+The `diagnose` JSON has exactly `chains`: a list of retained 2D chains, not sampler result objects. It returns full intermediate rank/fold/normal-score audit arrays. API callers can omit these arrays. Use **retained samples only**; this function does not infer or remove warmup from a plain list.
 
 ```text
 r = pooled one-based rank, average ranks for exactly tied finite values
@@ -144,7 +162,7 @@ folded_draw = abs(draw - pooled_median)
 Rhat_max = max(Rhat(split rank scores), Rhat(split folded rank scores))
 ```
 
-To avoid hidden draw dropping, this implementation requires equal **even lengths>=4**,2..64 chains and at most100,000 total2D draws. Every retained draw is used and dropped_draws=0 is returned. Odd or unequal chains fail cleanly instead of silently trimming or padding. All values must be finite. Zero within-component variance returns null/status; if **either** component is undefined, the maximum remains null too, even if the other component is computable. Such a result is not a pass. Values below1 are not clipped, no threshold is enforced, and no ESS/MCSE or convergence certificate is supplied.
+To avoid hidden draw dropping, this implementation requires equal **even lengths>=4**,2..64 chains and at most100,000 total 2D draws. Every retained draw is used and dropped_draws=0 is returned. Odd or unequal chains fail cleanly instead of silently trimming or padding. All values must be finite. Zero within-component variance returns null/status; if **either** component is undefined, the maximum remains null too, even if the other component is computable. Such a result is not a pass. Values below1 are not clipped, no threshold is enforced, and no ESS/MCSE or convergence certificate is supplied.
 
 Existing retained-chain x-coordinate results, without resampling:
 
@@ -163,7 +181,7 @@ Two deterministic diagnostic counterexamples are included with their complete su
 
 A monotone transform preserves the bulk rank component as long as ordering/ties are unchanged. Do not generalize this to the folded component under arbitrary nonlinear transforms: folding around a median changes distances. Exact-tie handling and finite normal quantiles are auditable; this is not a claim that numerical values match every statistical package's edge-case conventions. In particular, null for a degenerate folded component is deliberate and conservative, not a package-compatibility assertion.
 
-Nine added tests cover tie ranks/Blom inversion, all ties/symmetric scores, independent closed-form variance ratio, explicit split/fold ordering, affine/chain-order invariance, nonlinear bulk-rank invariance, no mutation, degenerate components, scale/half-chain counterexamples, limits and CLI. **47 tests at the rank-diagnostic increment.** All previous sampler/demo fields and the SVG remain unchanged. This is independently implemented from [Vehtari et al., Rank-normalization, folding, and localization, Sections4.1/4.2, equations14/15](https://arxiv.org/pdf/1903.08008). No reference implementation copied, no ESS implementation and no paper simulation/threshold guarantee claimed.
+Rank-diagnostic tests cover tie ranks/Blom inversion, all ties/symmetric scores, independent closed-form variance ratio, explicit split/fold ordering, affine/chain-order invariance, nonlinear bulk-rank invariance, no mutation, degenerate components, scale/half-chain counterexamples, limits and CLI. This is independently implemented from [Vehtari et al., Rank-normalization, folding, and localization, Sections 4.1/4.2, equations 14/15](https://arxiv.org/pdf/1903.08008). No reference implementation copied, no ESS implementation and no paper simulation/threshold guarantee claimed.
 
 ## Analytic harmonic flow and mass convention
 
@@ -203,9 +221,9 @@ A fixed-duration `T=1.3` refinement fixture, precision `[1,4]`,identity mass, co
 |---|---|---|---|---|
 | Error | .018919629 | .004712811 | .001177146 | .000294221 |
 
-Doubling steps at fixed duration gives ratios close to4 here, consistent with second-order leapfrog error. This is a deterministic development check, not a universal numerical bound or a benchmark. Ten new tests cover closed dynamics, exact energy/covariance/determinant, composition/inverse time, mass convention, quarter/half/full phases, pre-correction variance, second-order refinement, error matrices, no mutation, limits and CLI. **57 tests at the harmonic-reference increment.** All previous demo fields and SVG remain unchanged; only `harmonic_reference` is added.
+Doubling steps at fixed duration gives ratios close to4 here, consistent with second-order leapfrog error. This is a deterministic development check, not a universal numerical bound or a benchmark. Harmonic-reference tests cover closed dynamics, exact energy/covariance/determinant, composition/inverse time, mass convention, quarter/half/full phases, pre-correction variance, second-order refinement, error matrices, no mutation, limits and CLI. The demo includes this analysis in `harmonic_reference`.
 
-Inputs inherit quadratic-map bounds: finite2D position, precision/mass in `(0,1e4]`, absolute step size in `(0,10]`,integer steps1..1000. Absolute harmonic phase must also be<=1e6; nonfinite maps/moments fail instead of becoming misleading JSON. The formulas use ordinary floating point, including roundoff near resonances, and are not certified exact arithmetic. This independent extension derives the diagonal-mass solution from [Neal's Hamilton equations and one-dimensional harmonic example, equations8..13](https://ar5iv.labs.arxiv.org/html/1206.1901); no reference code copied, timing/efficiency claim, adaptive tuning or convergence certificate.
+Inputs inherit quadratic-map bounds: finite 2D position, precision/mass in `(0,1e4]`, absolute step size in `(0,10]`,integer steps1..1000. Absolute harmonic phase must also be<=1e6; nonfinite maps/moments fail instead of becoming misleading JSON. The formulas use ordinary floating point, including roundoff near resonances, and are not certified exact arithmetic. This independent extension derives the diagonal-mass solution from [Neal's Hamilton equations and one-dimensional harmonic example, equations 8-13](https://ar5iv.labs.arxiv.org/html/1206.1901); no reference code copied, timing/efficiency claim, adaptive tuning or convergence certificate.
 
 ## Finite-window observables: a mean can cancel while magnitude stays stuck
 
@@ -242,7 +260,7 @@ For x precision1, precision mass and N20:
 
 At the sign flip, an even-window position mean cancels exactly but q² never averages away its random initial magnitude. For N21, position-mean variance is1/441=.002267574 while q²-mean variance remains2. Negative correlation can help one observable and hurt another. **Zero variance of one average is not evidence of exploration.** These are finite-window variances, not asymptotic ESS, a CLT, an MCSE estimate from data or an inference guarantee. The ordinary infinite-sum autocorrelation shortcut is not used at the nonergodic endpoints rho=+/-1.
 
-Draw count must be an integer1..10000; other inputs inherit the harmonic/quadratic limits. Nonfinite stationary squared-position variances fail cleanly. Nine added tests compare direct covariance double sums, exact quarter/full/half phases including even/odd windows, every lag/weight/coefficient, negative-correlation observables, a seeded stationary exact-kernel simulation, bounds, no mutation and CLI. **66 tests at the fixed-window increment.** Only `finite_window_reference` is added to the demo; all previous fields and SVG stay unchanged. The diagonal Gaussian dynamics derive from [Neal's harmonic example and momentum-covariance convention, equations8..13](https://ar5iv.labs.arxiv.org/html/1206.1901); the finite-window covariance derivation is provided here independently, not copied reference code or a paper experiment.
+Draw count must be an integer1..10000; other inputs inherit the harmonic/quadratic limits. Nonfinite stationary squared-position variances fail cleanly. Finite-window tests compare direct covariance double sums, exact quarter/full/half phases including even/odd windows, every lag/weight/coefficient, negative-correlation observables, a seeded stationary exact-kernel simulation, bounds, no mutation and CLI. The demo includes this analysis in `finite_window_reference`. The diagonal Gaussian dynamics derive from [Neal's harmonic example and momentum-covariance convention, equations 8-13](https://ar5iv.labs.arxiv.org/html/1206.1901); the finite-window covariance derivation is provided here independently, not copied reference code or a paper experiment.
 
 ## Random durations: zero position correlation is not independence
 
@@ -275,11 +293,11 @@ For x precision1, mass1, N20 and equal-probability two-branch schedules:
 
 In the first schedule, independent choices between sign flip and identity make every nonzero-lag position correlation zero, but magnitude is unchanged forever. Its q-mean variance equals the IID value while its q²-mean variance is20 times the IID value. In the second schedule, position correlation is near zero, but q² remains correlated; its finite-window variance ratio is1.622222222, not1. These are different specified analytic kernels, not a controlled efficiency comparison or a general claim that random lengths fix mixing. Neither is the existing finite-step leapfrog random-length sampler.
 
-JSON includes every branch duration, phase, probability and cosine, plus a, b, a², the nonnegative branch-cosine variance and both complete finite-window audits. Bounds are1..64 entries and1..10000 draws, plus the existing harmonic/quadratic bounds. Invalid/extra fields and nonfinite moments fail. Nine new tests cover singleton equality with the fixed reference, both counterexamples, exhaustive products over independent branch paths, multiplicity/order, no aliasing/mutation, seeded stationary exact-kernel simulation, maximum bounds and CLI. **75 tests at the random-duration increment.** Only `random_duration_window_reference` is added to the demo; all prior fields and SVG remain unchanged.
+JSON includes every branch duration, phase, probability and cosine, plus a, b, a², the nonnegative branch-cosine variance and both complete finite-window audits. Bounds are1..64 entries and1..10000 draws, plus the existing harmonic/quadratic bounds. Invalid/extra fields and nonfinite moments fail. Random-duration tests cover singleton equality with the fixed reference, both counterexamples, exhaustive products over independent branch paths, multiplicity/order, no aliasing/mutation, seeded stationary exact-kernel simulation, maximum bounds and CLI. The demo includes this analysis in `random_duration_window_reference`.
 
 This extension independently derives marginal observable covariances from [Neal's harmonic dynamics and Gaussian momentum convention](https://ar5iv.labs.arxiv.org/html/1206.1901). No reference code or paper simulation is copied. Stationary initialization and IID state-independent branch choices are required. No result is a sampled-chain ESS/MCSE estimate, a CLT, a joint-process independence claim, an adaptive tuning recommendation or a convergence certificate. Floating-point trigonometric roundoff is retained rather than described as exact symbolic zeros.
 
-## Reproducible observable-window figure
+## Observable-window figure
 
 ![Finite-window variance for position and squared position](assets/window-audit.svg)
 
@@ -291,4 +309,4 @@ The deterministic renderer evaluates the existing analytic reference APIs for ev
 
 Each line joins window-length summaries, not a sampled trajectory. All40 integer values are drawn without thinning, clipping, fitted smoothing or logarithmic zero replacement. Near-coincident curves are expected: quarter-period q/q²/IID match; identity q/q² match at1; random sign/identity q/IID match. Solid teal, dashed ink and dotted gray distinguish the series when they separate. The figure does not show empirical chains or prove mixing.
 
-Seven new tests check all source N values/counterexamples, every rendered vertex against its data, shared-axis bounds, complete15x40 vertices, malformed/reordered/nonfinite inputs, XML label escaping, no mutation, deterministic committed SVG and JSON/check CLI. **82 tests total.** CI regenerates and byte-checks the figure. No demo result, reference formula or sampler draw is changed; the existing chain SVG also remains unchanged. Renderer and SVG are standard-library outputs with no plotting dependency.
+Renderer tests check all source N values/counterexamples, every rendered vertex against its data, shared-axis bounds, complete15x40 vertices, malformed/reordered/nonfinite inputs, XML label escaping, no mutation, deterministic committed SVG and JSON/check CLI. CI regenerates and byte-checks the figure. Renderer and SVG are standard-library outputs with no plotting dependency.
